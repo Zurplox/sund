@@ -1,0 +1,855 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>SunD — UV & Vitamin D estimator</title>
+<style>
+:root{
+  --text:#2C2C2B; --text2:#7D7A75; --canvas:#FFFFFF; --soft:#F9F8F7; --surface:#F0EFED;
+  --border:#E6E5E3; --blue:#2783DE; --blue-soft:#E5F2FC; --green:#46A171; --green-soft:#E8F1EC;
+  --orange:#D5803B; --orange-soft:#FBEBDE; --red:#E56458; --red-soft:#FCE9E7;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --text:#FFFFFF; --text2:rgba(255,255,255,.65); --canvas:#191919; --soft:#202020; --surface:#383836;
+    --border:rgba(255,255,255,.20); --blue:#5E9FE8; --blue-soft:rgba(94,159,232,.12); --green:#72BC8F; --green-soft:rgba(114,188,143,.12);
+    --orange:#DE9255; --orange-soft:rgba(222,146,85,.12); --red:#E97366; --red-soft:rgba(233,115,102,.12);
+  }
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  background:var(--canvas); color:var(--text); font-size:16px; line-height:1.5;
+  display:flex; justify-content:center; padding:24px 16px 64px;
+}
+main{width:100%; max-width:440px; display:flex; flex-direction:column; gap:16px}
+header{padding:8px 4px 0}
+header h1{font-size:28px; font-weight:700; letter-spacing:-.02em}
+header p{color:var(--text2); font-size:14px; margin-top:4px}
+.card{
+  background:var(--soft); border:1px solid var(--border); border-radius:12px;
+  padding:20px; display:flex; flex-direction:column; gap:16px;
+}
+.card h2{font-size:13px; font-weight:600; text-transform:uppercase; letter-spacing:.06em; color:var(--text2)}
+.row{display:flex; align-items:center; justify-content:space-between; gap:12px}
+.wrap{flex-wrap:wrap}
+.uvi-num{font-size:72px; font-weight:700; letter-spacing:-.03em; line-height:1}
+.uvi-num.ph{color:var(--text2); font-size:48px}
+.uvi-sub{color:var(--text2); font-size:14px}
+.chip{
+  display:inline-flex; align-items:center; gap:6px; font-size:13px; font-weight:500;
+  padding:4px 10px; border-radius:999px; background:var(--blue-soft); color:var(--blue);
+}
+.chip.gray{background:var(--surface); color:var(--text2)}
+.chip.green{background:var(--green-soft); color:var(--green)}
+.chip.orange{background:var(--orange-soft); color:var(--orange)}
+.warn-banner{
+  background:var(--orange-soft); color:var(--orange); font-size:14px; font-weight:500;
+  padding:12px 14px; border-radius:8px; line-height:1.4;
+}
+.meta-grid{display:grid; grid-template-columns:1fr 1fr; gap:12px}
+.meta{background:var(--canvas); border:1px solid var(--border); border-radius:8px; padding:12px}
+.meta .k{font-size:12px; color:var(--text2)}
+.meta .v{font-size:18px; font-weight:600; margin-top:2px; word-break:break-word}
+button{
+  font:inherit; font-weight:600; border:none; border-radius:8px; cursor:pointer;
+  min-height:44px; padding:10px 16px; background:var(--blue); color:#fff; width:100%;
+}
+button.secondary{background:var(--surface); color:var(--text)}
+button.danger{background:var(--red)}
+button:disabled{opacity:.5; cursor:default}
+.skin-grid{display:grid; grid-template-columns:repeat(3,1fr); gap:8px}
+.skin{
+  position:relative; border:1.5px solid rgba(0,0,0,.10); border-radius:8px;
+  padding:10px 8px; text-align:center; cursor:pointer; min-height:44px; width:auto;
+  font-weight:600;
+}
+.skin .d{display:block; font-size:12px; font-weight:400; margin-top:2px; opacity:.85}
+.skin.sel{outline:3px solid var(--blue); outline-offset:2px}
+.skin.sel::after{
+  content:"✓"; position:absolute; top:-7px; right:-7px; width:20px; height:20px;
+  border-radius:50%; background:var(--blue); color:#fff; font-size:12px; line-height:20px;
+}
+input[type=range]{width:100%; accent-color:var(--blue); height:44px}
+input[type=number]{
+  font:inherit; color:var(--text); background:var(--canvas); border:1px solid var(--border);
+  border-radius:8px; padding:10px 12px; width:100%; min-height:44px;
+}
+label.small{font-size:13px; color:var(--text2); display:block; margin-bottom:6px}
+.timer-num{font-size:40px; font-weight:700; letter-spacing:-.02em}
+.bar{height:8px; border-radius:4px; background:var(--surface); overflow:hidden}
+.bar > div{height:100%; width:0%; background:var(--green); border-radius:4px; transition:width .5s linear}
+.bar > div.warn{background:var(--orange)}
+.bar > div.over{background:var(--red)}
+.bar-labels{display:flex; justify-content:space-between; font-size:12px; color:var(--text2); margin-top:6px}
+.note{font-size:13px; color:var(--text2)}
+.note b{color:var(--text); font-weight:600}
+details{font-size:13px; color:var(--text2)}
+details summary{cursor:pointer; font-weight:600; color:var(--text); min-height:44px; display:flex; align-items:center}
+details p{margin:8px 0}
+#diagList{display:flex; flex-direction:column; gap:4px; margin-top:8px; font-family:Menlo,Consolas,monospace; font-size:12px}
+#diagList .ok{color:var(--green)}
+#diagList .err{color:var(--red)}
+video#cam{width:100%; height:96px; object-fit:cover; border-radius:8px; display:none}
+footer{font-size:12px; color:var(--text2); padding:0 4px; display:flex; flex-direction:column; gap:8px}
+.hidden{display:none !important}
+.pchip.sel{outline:2px solid var(--blue); outline-offset:1px}
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>☀️ SunD</h1>
+    <p>Live UV estimate &amp; vitamin D timer — from your phone's sensors, not the internet.</p>
+  </header>
+
+  <!-- ============ UV CARD ============ -->
+  <section class="card" id="uvCard">
+    <div class="warn-banner hidden" id="httpsWarn">
+      ⚠️ This page is not on HTTPS, so the browser is blocking the camera, light sensor and location.
+      Upload this file to <b>GitHub Pages</b> (repo → Settings → Pages) and open the
+      <b>https://…github.io…</b> link instead. Opening the file directly will never work.
+    </div>
+
+    <div class="row">
+      <h2>UV right now</h2>
+      <span class="chip gray" id="srcChip">Sensors off</span>
+    </div>
+
+    <div class="row wrap">
+      <div>
+        <div class="uvi-num ph" id="uviNum">––</div>
+        <div class="uvi-sub" id="uviLabel">Estimated UV index</div>
+      </div>
+      <span class="chip" id="condChip" style="display:none"></span>
+    </div>
+
+    <video id="cam" playsinline muted></video>
+    <button class="secondary hidden" id="flipBtn">🔁 Switch camera (front/back)</button>
+    <input type="file" id="photoIn" accept="image/*" capture="environment" style="position:fixed;bottom:0;right:0;width:2px;height:2px;opacity:.01;z-index:-1;overflow:hidden;font-size:0" aria-hidden="true">
+    <button class="secondary hidden" id="photoBtn">📸 Photo meter — snap open sky (sun out of frame)</button>
+    <div class="note hidden" id="photoNote"></div>
+    <button class="secondary hidden" id="liveBtn">🎥 Restart live camera</button>
+    <div class="row" id="platRow">
+      <label class="small" style="margin:0">Platform</label>
+      <div style="display:flex; gap:6px; flex:1">
+        <button class="secondary pchip sel" data-p="auto" style="flex:1">Auto</button>
+        <button class="secondary pchip" data-p="ios" style="flex:1">iOS</button>
+        <button class="secondary pchip" data-p="android" style="flex:1">Android</button>
+      </div>
+    </div>
+
+    <div class="meta-grid">
+      <div class="meta"><div class="k">Sensor reading</div><div class="v" id="luxVal">–</div></div>
+      <div class="meta"><div class="k">Sun elevation</div><div class="v" id="sunVal">–</div></div>
+    </div>
+
+    <button id="startBtn">▶ Enable sensors &amp; measure</button>
+
+    <div class="row wrap hidden" id="locRow">
+      <div style="flex:1; min-width:120px">
+        <label class="small" for="latIn">Latitude</label>
+        <input type="number" id="latIn" step="0.01" placeholder="1.35">
+      </div>
+      <div style="flex:1; min-width:120px">
+        <label class="small" for="lonIn">Longitude</label>
+        <input type="number" id="lonIn" step="0.01" placeholder="103.82">
+      </div>
+    </div>
+    <div class="note hidden" id="locNote"></div>
+
+    <details id="diagBox">
+      <summary>Diagnostics — tap here if nothing happens</summary>
+      <div id="diagList"></div>
+    </details>
+  </section>
+
+  <!-- ============ SKIN CARD ============ -->
+  <section class="card">
+    <h2>Your skin (Fitzpatrick type)</h2>
+    <div class="skin-grid" id="skinGrid"></div>
+    <div>
+      <div class="row">
+        <label class="small" for="expRange" style="margin:0">Skin exposed to the sky</label>
+        <span class="chip gray" id="expVal">25%</span>
+      </div>
+      <input type="range" id="expRange" min="5" max="90" step="5" value="25">
+      <div class="bar-labels"><span>Face &amp; hands</span><span>+Arms</span><span>Most of body</span></div>
+    </div>
+  </section>
+
+  <!-- ============ SESSION CARD ============ -->
+  <section class="card">
+    <h2>Sun session</h2>
+    <div class="row">
+      <div>
+        <div class="timer-num" id="timerVal">0:00</div>
+        <div class="uvi-sub">Time in sun</div>
+      </div>
+      <div style="text-align:right">
+        <div class="timer-num" id="iuVal" style="color:var(--green)">0</div>
+        <div class="uvi-sub">Est. IU of vitamin D</div>
+      </div>
+    </div>
+    <div>
+      <div class="bar"><div id="burnBar"></div></div>
+      <div class="bar-labels">
+        <span id="burnLeft">Safe zone</span>
+        <span id="burnRight">Burn time: –</span>
+      </div>
+    </div>
+    <button id="sessBtn" disabled>Start session</button>
+  </section>
+
+  <!-- ============ INFO ============ -->
+  <details>
+    <summary>How this works (and its limits)</summary>
+    <p><b>Android + Chrome:</b> reads the real ambient light sensor (lux) when available. Otherwise the camera is used with <b>manual (locked) exposure</b> where supported — auto-exposure can't "correct away" the signal. Where lock is unavailable, it meters the camera's chosen ISO × shutter speed via the incident-meter equation <b>E = C·N²/(t·ISO)</b>, with the aperture (N) read from a photo's EXIF. The constant C is <b>platform-tuned</b> (Android ≈ 1200, iOS ≈ 200): phone makers' auto-exposure targets differ ~5× in bright sun, so one textbook constant (250–330) under-reads Android and over-reads iPhone. When exposure lock succeeds, the pre-lock metered reading <b>anchors the pixel scale per device</b>, so the live and photo paths agree by construction.</p>
+    <p><b>iPhone / iPad:</b> iOS exposes neither the light sensor nor exposure controls to websites, and its live camera preview is HDR tone-mapped (dark scenes are artificially lifted — absolute brightness is unreliable by design). Two paths: the live video gives a rough "% of clear sky" with strong dim-end suppression (Apple's brightening is aggressively countered); for a <b>real measurement</b>, use the <b>📸 Photo meter</b> — it reads ISO, shutter speed and aperture from the photo's EXIF and applies the same incident-meter equation as Android, so iPhone and Android readings are directly comparable.</p>
+    <p><b>Why two phones read differently — and the fix:</b> apertures (f/1.8–f/2.2 ≈ ±25% via the N² term), sensor gains and tone curves differ per device, and iPhones add HDR processing. SunD applies <b>platform-specific corrections</b>: on Android it locks exposure (or meters ISO×shutter with the EXIF aperture); on iOS it expands the compressed preview band for the live view and treats the <b>📸 Photo meter</b> as the real measurement — the photo's EXIF (ISO, shutter, aperture) feeds the same incident-meter equation on every platform. Everything is converted to <b>% of clear-sky brightness for the sun's exact current position</b>, so readings are comparable across phones. If auto-detection picks the wrong platform, use the <b>Platform</b> toggle (Auto / iOS / Android) above.</p>
+    <p><b>Live vs static:</b> Android runs continuously off the live camera/sensor. On iPhone/iPad, snap the sky once — the app freezes that reading, turns the live camera off, and the session timer keeps accumulating from the photo's measured value until you retake it.</p>
+    <p>Phone sensors only see <i>visible</i> light, never UV. SunD estimates UV by comparing your measured brightness with the theoretical clear-sky brightness for the sun's exact position (computed from your time &amp; location — no internet needed). Clouds and haze dim the light, and the estimate drops with it.</p>
+    <p><b>The golden rule:</b> outdoors or at an open window, camera/sensor facing the sky. Glass blocks the UV-B that makes vitamin D but lets visible light through. Expect ±2–3 UV index of error: a guide, not a measurement.</p>
+  </details>
+
+  <details>
+    <summary>The vitamin D calculation (with references)</summary>
+    <p><b>Step 1 — UV dose rate.</b> Erythemal (sunburn-weighted) irradiance = <b>UVI × 25 mW/m²</b>, per the WHO/WMO UV index definition on the CIE erythema action spectrum (ISO/CIE 17166).</p>
+    <p><b>Step 2 — Time to 1 MED.</b> Minimal erythemal dose ≈ 200 / 250 / 300 / 450 / 600 / 1000 J/m² for Fitzpatrick types I–VI (typical solar-simulator values; MED rises with skin type). So <b>t(MED) = MED ÷ (0.025 × UVI)</b> seconds.</p>
+    <p><b>Step 3 — Vitamin D.</b> <b>Holick's rule:</b> exposing ¼ of the body to ¼ of 1 MED ≈ 1,000 IU of oral vitamin D (Holick; PubMed 20398766, “Holick's rule and vitamin D from sunlight”). Full-body 1 MED ≈ 10,000–25,000 IU (Holick 2011; Med J Aust 2011). SunD scales this by your skin-exposure slider — the same model used by the dminder app.</p>
+    <p><b>Honesty note:</b> real synthesis varies ±50% or more with age, body fat, season, and your current vitamin D level. This is a published rule of thumb, not a lab measurement.</p>
+  </details>
+
+  <footer>
+    <span>⚠️ Rough estimate only — not medical advice. Never use this to justify longer sun exposure; when in doubt, cover up.</span>
+    <span>Runs 100% on your device. No data leaves the phone. Build v11 · 30 Aug 2026, 3:20 PM SGT.</span>
+  </footer>
+</main>
+
+<script>
+"use strict";
+/* ================= STATE ================= */
+const S = {
+  lat: null, lon: null,
+  source: null,          // 'als' | 'camera' | 'photo' | 'demo'
+  lux: null,             // real lux (ALS)
+  emaAtt: null,          // smoothed camera attenuation (raw)
+  camLux: null,          // metered lux estimate (only when ISO/shutter readable)
+  camDetail: "",         // diagnostics string for the camera path
+  photoAt: null,         // timestamp of the last photo-meter reading
+  aperture: 2.0,         // f-number; read from photo EXIF on Android, else default
+  facing: "user",        // front camera by default
+  expLocked: false,
+  lockRef: null,         // {g0, att0}: metered anchor captured at exposure-lock time
+  uvi: null, elapsedMin: 0, iu: 0,
+  skin: 2, exposure: 25,
+  running: false, lastTick: null,
+  platform: "auto",      // 'auto' | 'ios' | 'android' — manual override for corrections
+  everEnabled: false,    // true after first sensor enable (reveals Restart-live button)
+  photoBusyAt: 0,        // timestamp of last photo-meter tap (guards camera auto-restart)
+};
+
+const SKIN = [
+  {t:"I",   med:200,  d:"Very fair", bg:"#F6E4D8", fg:"#43362B"},
+  {t:"II",  med:250,  d:"Fair",      bg:"#EECDB2", fg:"#43362B"},
+  {t:"III", med:300,  d:"Medium",    bg:"#D9A87F", fg:"#3F2E1F"},
+  {t:"IV",  med:450,  d:"Olive",     bg:"#A9744A", fg:"#FFFFFF"},
+  {t:"V",   med:600,  d:"Brown",     bg:"#7C4E2E", fg:"#FFFFFF"},
+  {t:"VI",  med:1000, d:"Dark",      bg:"#43291B", fg:"#FFFFFF"},
+];
+
+const $ = id => document.getElementById(id);
+const clamp = (v,a,b) => Math.max(a, Math.min(b, v));
+const isHTTPS = location.protocol === "https:" || /^(localhost|127\.)/.test(location.hostname);
+const detectedIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+// Platform: auto-detected, with a manual Auto / iOS / Android override toggle in the UI.
+const plat = () => S.platform === "auto" ? (detectedIOS ? "ios" : "android") : S.platform;
+// Metering constant for E = C·N²/(t·ISO) — platform-split on purpose. Phone AE targets
+// differ ~5x in bright sun (Android exposes "slower/brighter" than iOS), so the textbook
+// C≈250-330 under-reads Android and over-reads iPhone. Fitted against the clear-sky reference.
+const meterC = () => plat() === "ios" ? 200 : 1200;
+
+/* ================= DIAGNOSTICS ================= */
+function diag(msg, kind){
+  const list = $("diagList");
+  const line = document.createElement("div");
+  if (kind) line.className = kind;
+  line.textContent = new Date().toTimeString().slice(0,8) + "  " + msg;
+  list.prepend(line);
+  while (list.children.length > 12) list.removeChild(list.lastChild);
+}
+
+/* ================= SUN MATH ================= */
+function sunElevation(date, lat, lon){
+  const start = Date.UTC(date.getFullYear(), 0, 0);
+  const doy = (date.getTime() - start) / 864e5;
+  const decl = -23.44 * Math.PI/180 * Math.cos((2*Math.PI/365) * (doy + 10));
+  const utcMin = date.getUTCHours()*60 + date.getUTCMinutes() + date.getUTCSeconds()/60;
+  const solarMin = utcMin + 4 * lon;
+  const ha = ((solarMin / 4) - 180) * Math.PI/180;
+  const la = lat * Math.PI/180;
+  const sinEl = Math.sin(la)*Math.sin(decl) + Math.cos(la)*Math.cos(decl)*Math.cos(ha);
+  return Math.asin(Math.max(-1, Math.min(1, sinEl))) * 180/Math.PI;
+}
+const clearSkyLux = el => el <= 0 ? 0 : 133000 * Math.pow(Math.sin(el*Math.PI/180), 1.15);
+const clearSkyUVI = el => el <= 0 ? 0 : 11.5  * Math.pow(Math.sin(el*Math.PI/180), 1.25);
+
+// Gamma-decode display luma to a ~linear light signal (undoes the ~1/2.2 tone curve).
+const lin = luma => Math.pow(clamp(luma, 0, 255) / 255, 2.2);
+
+function attToCond(att){
+  return att > .85 ? ["Direct / clear sun","green"] :
+         att > .55 ? ["Hazy / thin cloud",""] :
+         att > .25 ? ["Cloudy / bright shade","orange"] : ["Heavy shade","orange"];
+}
+
+/* ================= LIGHT SENSOR (Chrome/Android) ================= */
+function tryALS(){
+  if (!("AmbientLightSensor" in window)){
+    diag("light sensor: API absent (use Chrome on Android; iOS has none)");
+    return;
+  }
+  if (navigator.permissions && navigator.permissions.query){
+    navigator.permissions.query({name:"ambient-light-sensor"})
+      .then(r => diag("light-sensor permission: " + r.state))
+      .catch(() => {});
+  }
+  let sensor;
+  try { sensor = new AmbientLightSensor(); }
+  catch(e){ diag("light sensor: blocked (" + e.name + ")", "err"); return; }
+  let gotReading = false;
+  sensor.addEventListener("reading", () => {
+    S.lux = sensor.illuminance;
+    if (!gotReading){
+      gotReading = true;
+      diag("light sensor: live ✓ (" + Math.round(S.lux) + " lx)", "ok");
+      stopCamera();   // real lux beats the camera — free it
+    }
+    setSource("als");
+  });
+  sensor.addEventListener("error", ev => {
+    diag("light sensor: " + ((ev.error && ev.error.name) || "error") +
+         " — check site settings: sensors allowed", "err");
+  });
+  try {
+    sensor.start();
+    diag("light sensor: started, waiting for first reading…");
+    setTimeout(() => { if (!gotReading) diag("light sensor: no readings after 5s (blocked or no hardware)", "err"); }, 5000);
+  } catch(e){ diag("light sensor: start failed (" + e.name + ")", "err"); }
+}
+
+/* ================= CAMERA ================= */
+let camStream = null, camTimer = null;
+
+function stopCamera(){
+  if (camTimer){ clearInterval(camTimer); camTimer = null; }
+  if (camStream){ camStream.getTracks().forEach(t => t.stop()); camStream = null; }
+  $("cam").style.display = "none";
+  $("flipBtn").classList.add("hidden");
+}
+
+function setSource(src){
+  if (S.source === "als" && src === "camera") return;   // real lux beats camera
+  S.source = src;
+  if (src === "als" || src === "camera" || src === "photo"){
+    $("photoBtn").classList.remove("hidden");
+    if (plat() === "ios") $("photoBtn").classList.remove("secondary");   // primary CTA on iOS
+  }
+  $("liveBtn").classList.toggle("hidden", !S.everEnabled);
+  const chip = $("srcChip");
+  chip.className = "chip " + (src === "als" ? "green" : src === "camera" || src === "photo" ? "" : "gray");
+  chip.textContent = src === "als" ? "● Light sensor (lux)" :
+                     src === "camera" ? "● Camera sky brightness (live)" :
+                     src === "photo" ? "● Photo meter (EXIF lux)" :
+                     src === "demo" ? "○ Demo mode" : "Sensors off";
+}
+
+async function tryLockExposure(track){
+  const caps = (track.getCapabilities && track.getCapabilities()) || {};
+  if (Array.isArray(caps.exposureMode) && caps.exposureMode.includes("manual") && caps.exposureTime){
+    try{
+      // Short-ish fixed exposure + lowest ISO: bright sky ≈ high luma, shade ≈ low luma.
+      const t = clamp(caps.exposureTime.min * 6, caps.exposureTime.min, caps.exposureTime.max / 4);
+      const c = { exposureMode: "manual", exposureTime: t };
+      if (caps.iso) c.iso = caps.iso.min;
+      await track.applyConstraints({ advanced: [c] });
+      S.expLocked = true;
+      diag("exposure: LOCKED ✓ manual " + t.toFixed(2) + "ms, ISO " + (caps.iso ? caps.iso.min : "?"), "ok");
+      return;
+    }catch(e){ diag("exposure lock failed: " + e.name, "err"); }
+  } else {
+    diag("exposure lock: unsupported here — will meter ISO/shutter instead (or luma on iOS)");
+  }
+  S.expLocked = false;
+}
+
+/*EXIF-START*/
+// ---- minimal EXIF exposure reader (JPEG + HEIC) → { t (s), N (f-number), iso } ----
+const u16be = (b, p) => (b[p]<<8) | b[p+1];
+const u32be = (b, p) => ((((b[p]<<24) >>> 0) + (b[p+1]<<16) + (b[p+2]<<8) + b[p+3]) >>> 0);
+
+function parseTIFF(b, t0){
+  if (t0 + 8 > b.length) return null;
+  const le = b[t0] === 0x49;
+  const u16 = p => le ? (b[t0+p] | (b[t0+p+1]<<8)) : ((b[t0+p]<<8) | b[t0+p+1]);
+  const u32 = p => (le ? (u16(p) | (u16(p+2)<<16)) : ((u16(p)<<16) | u16(p+2))) >>> 0;
+  const entries = base => {
+    const map = {};
+    if (base + 2 > b.length - t0) return map;
+    const cnt = u16(base);
+    for (let i = 0; i < cnt; i++){
+      const e = base + 2 + i*12;
+      if (e + 12 > b.length - t0) break;
+      map[u16(e)] = { type: u16(e+2), val: e+8 };
+    }
+    return map;
+  };
+  const rational = en => { const p = u32(en.val); const n = u32(p), d = u32(p+4); return d ? n/d : null; };
+  const ifd0 = entries(u32(4));
+  const exifPtr = ifd0[0x8769] ? u32(ifd0[0x8769].val) : null;
+  if (exifPtr == null) return null;
+  const ex = entries(exifPtr);
+  const out = {};
+  if (ex[0x829A]) out.t = rational(ex[0x829A]);          // ExposureTime (s)
+  if (ex[0x829D]) out.N = rational(ex[0x829D]);          // FNumber
+  if (ex[0x8827]) out.iso = ex[0x8827].type === 3 ? u16(ex[0x8827].val) : rational(ex[0x8827]); // ISO
+  return out;
+}
+
+// HEIC/HEIF: locate the "Exif" item via meta → iinf + iloc, return the TIFF header offset.
+function heicTiffStart(b){
+  // Box walker with 64-bit largesize + size-0 support (real HEIC files use these).
+  const boxAt = off => {
+    let size = u32be(b, off), hdr = 8;
+    const type = String.fromCharCode(b[off+4],b[off+5],b[off+6],b[off+7]);
+    if (size === 1){ size = u32be(b, off+8) * 4294967296 + u32be(b, off+12); hdr = 16; }
+    if (size === 0) size = b.length - off;
+    return { type, size, hdr };
+  };
+  let off = 0, meta = null;
+  while (off + 8 <= b.length){
+    const bx = boxAt(off);
+    if (bx.size < bx.hdr || off + bx.size > b.length) break;
+    if (bx.type === "meta"){ meta = { start: off + bx.hdr, end: off + bx.size }; break; }
+    off += bx.size;
+  }
+  if (!meta) return null;
+  let p = meta.start + 4, exifItemId = null, iloc = null;   // meta is a FullBox (4-byte hdr)
+  while (p + 8 <= meta.end){
+    const bx = boxAt(p), type = bx.type;
+    if (bx.size < bx.hdr || p + bx.size > meta.end) break;
+    const body = p + bx.hdr, end = p + bx.size;
+    if (type === "iinf"){
+      const ver = b[body];
+      let q = body + 4;
+      const count = ver === 0 ? u16be(b, q) : u32be(b, q);
+      q += ver === 0 ? 2 : 4;
+      for (let i = 0; i < count && q + 8 <= end; i++){
+        const esz = u32be(b, q), et = String.fromCharCode(b[q+4],b[q+5],b[q+6],b[q+7]);
+        if (et === "infe" && esz >= 8){
+          const ev = b[q+8];
+          if (ev === 2 && String.fromCharCode(b[q+16],b[q+17],b[q+18],b[q+19]) === "Exif") exifItemId = u16be(b, q+12);
+          if (ev === 3 && String.fromCharCode(b[q+18],b[q+19],b[q+20],b[q+21]) === "Exif") exifItemId = u32be(b, q+12);
+        }
+        q += esz;
+      }
+    } else if (type === "iloc"){ iloc = { start: body, end }; }
+    p += bx.size;
+  }
+  if (exifItemId == null || !iloc) return null;
+  p = iloc.start;
+  const ver = b[p];                                   // FullBox version (4-byte FullBox header first)
+  const offSz = b[p+4] >> 4, lenSz = b[p+4] & 15, baseSz = b[p+5] >> 4, idxSz = (ver === 1 || ver === 2) ? b[p+5] & 15 : 0;
+  p += 6;
+  const itemCount = ver < 2 ? u16be(b, p) : u32be(b, p);
+  p += ver < 2 ? 2 : 4;
+  const readN = (pp, n) => { let v = 0; for (let i = 0; i < n; i++) v = v * 256 + b[pp+i]; return v; };
+  for (let i = 0; i < itemCount; i++){
+    const itemId = ver < 2 ? u16be(b, p) : u32be(b, p); p += ver < 2 ? 2 : 4;
+    if (ver === 1 || ver === 2) p += 2;      // construction_method
+    p += 2;                                  // data_reference_index
+    const base = readN(p, baseSz); p += baseSz;
+    const extCount = u16be(b, p); p += 2;
+    for (let j = 0; j < extCount; j++){
+      if (idxSz) p += idxSz;
+      const eOff = readN(p, offSz); p += offSz;
+      const eLen = readN(p, lenSz); p += lenSz;
+      if (itemId === exifItemId){
+        const abs = base + eOff;
+        if (eLen < 8 || abs + eLen > b.length) return null;   // extent length includes the 4-byte offset
+        return abs + 4 + u32be(b, abs);      // Exif payload: u32 offset → TIFF header
+      }
+    }
+  }
+  return null;
+}
+
+async function exifExposure(blob){
+  const b = new Uint8Array(await blob.arrayBuffer());
+  if (b.length < 4) return null;
+  if (b[0] === 0xFF && b[1] === 0xD8){                       // JPEG
+    let off = 2;
+    while (off + 4 < b.length){
+      if (b[off] !== 0xFF) break;
+      const marker = b[off+1], len = (b[off+2]<<8) | b[off+3];
+      if (marker === 0xE1 && b[off+4] === 0x45 && b[off+5] === 0x78)
+        return parseTIFF(b, off + 10);                        // skip "Exif\0\0"
+      off += 2 + len;
+    }
+    return null;
+  }
+  const t0 = heicTiffStart(b);                                // HEIC/HEIF (modern iPhones)
+  return t0 != null ? parseTIFF(b, t0) : null;
+}
+/*EXIF-END*/
+
+async function tryReadAperture(track){
+  if (!("ImageCapture" in window)){ diag("aperture: ImageCapture unsupported — using f/2.0 default"); return; }
+  try{
+    const blob = await new ImageCapture(track).takePhoto();
+    const ex = await exifExposure(blob);
+    if (ex && ex.N && ex.N > 1 && ex.N < 3){ S.aperture = ex.N; diag("aperture from photo EXIF: f/" + ex.N.toFixed(2), "ok"); }
+    else diag("aperture: not in EXIF — using f/2.0 default");
+  }catch(e){ diag("aperture: " + e.name + " — using f/2.0 default"); }
+}
+
+// Brightest-quartile sky patch from the live frame: robust to a hand or edge in view.
+function grabFrame(v, cx, cv){
+  if (v.readyState < 2) return null;
+  cv.width = 64; cv.height = 48;
+  cx.drawImage(v, 0, 0, 64, 48);
+  const d = cx.getImageData(0, 0, 64, 48).data;
+  const lum = [];
+  for (let i = 0; i < d.length; i += 4) lum.push(0.2126*d[i] + 0.7152*d[i+1] + 0.0722*d[i+2]);
+  lum.sort((a, b) => b - a);
+  let top = 0; const nq = Math.max(1, lum.length >> 2);
+  for (let i = 0; i < nq; i++) top += lum[i];
+  const luma = top / nq;
+  return { luma, g: lin(luma) };
+}
+
+async function openCamera(){
+  if (!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia)){
+    diag("camera: API missing — page must be HTTPS", "err");
+    return false;
+  }
+  if (camStream){ camStream.getTracks().forEach(t => t.stop()); camStream = null; }
+  try{
+    camStream = await navigator.mediaDevices.getUserMedia({
+      video:{facingMode:{ideal:S.facing}, width:{ideal:320}, height:{ideal:240}}, audio:false});
+  }catch(e){
+    diag("camera: " + e.name + (e.name === "NotAllowedError" ? " — permission denied; check address-bar settings" :
+         e.name === "OverconstrainedError" ? " — retrying with any camera" : ""), "err");
+    if (e.name === "OverconstrainedError" || e.name === "NotFoundError"){
+      try{ camStream = await navigator.mediaDevices.getUserMedia({video:true, audio:false}); }
+      catch(e2){ diag("camera fallback: " + e2.name, "err"); return false; }
+    } else return false;
+  }
+  const v = $("cam");
+  v.srcObject = camStream;
+  try{ await v.play(); }catch(e){}
+  v.style.display = "block";
+  $("flipBtn").classList.remove("hidden");
+  setSource("camera");
+  diag("camera: live ✓ (" + (S.facing === "user" ? "front" : "back") + ") — point it at the sky", "ok");
+  if (plat() === "ios"){
+    diag("iOS: live video is rough only (HDR processing) — use 📸 Photo meter for an exact reading");
+    $("photoNote").textContent = "⚠️ iOS live video is only a rough guide (Apple brightens the preview). For the real value, use 📸 Photo meter.";
+    $("photoNote").classList.remove("hidden");
+  }
+
+  const track = camStream.getVideoTracks()[0];
+  track.addEventListener("ended", () => diag("camera track ended (screen lock?) — will resume on unlock"));
+  const cv = document.createElement("canvas"), cx = cv.getContext("2d", {willReadFrequently:true});
+
+  await tryReadAperture(track);                 // aperture first — it feeds the meter equation
+  await new Promise(r => setTimeout(r, 600));   // let auto-exposure settle
+  S.lockRef = null;
+  const st0 = (track.getSettings && track.getSettings()) || {};
+  const fr0 = grabFrame(v, cx, cv);
+  if (st0.iso && st0.exposureTime && fr0 && fr0.g > 0.02){
+    const el0 = sunElevation(new Date(), S.lat ?? 0, S.lon ?? (-new Date().getTimezoneOffset() / 4));
+    const expLux0 = clearSkyLux(el0);
+    if (expLux0 > 0){
+      const E0 = meterC() * S.aperture * S.aperture / (st0.exposureTime * st0.iso);
+      S.lockRef = { g0: fr0.g, att0: clamp(E0 / expLux0, 0, 1.15) };
+      diag("exposure anchor: ≈" + Math.round(E0).toLocaleString() + " lx metered at lock time", "ok");
+    }
+  }
+  await tryLockExposure(track);
+
+  camTimer = setInterval(() => {
+    if (!camStream) return;
+    const fr = grabFrame(v, cx, cv);
+    if (!fr) return;
+    const luma = fr.luma, g = fr.g;
+
+    const st = (track.getSettings && track.getSettings()) || {};
+    const elNow = sunElevation(new Date(), S.lat ?? 0, S.lon ?? (-new Date().getTimezoneOffset() / 4));
+    const expLuxNow = clearSkyLux(elNow);
+    let attRaw = 0;
+    S.camLux = null;
+    if (S.expLocked){
+      // Locked exposure with metered anchor: scale the lock-time metered reading by
+      // the luma ratio — ties the pixel path to the incident-meter equation per device.
+      attRaw = S.lockRef ? clamp((g / S.lockRef.g0) * S.lockRef.att0, 0, 1.15)
+                         : clamp(g / 0.9, 0, 1.15);
+      S.camDetail = "locked exp · " + Math.round(attRaw * 100) + "% sky" + (S.lockRef ? " (anchored)" : "");
+    } else if (st.iso && st.exposureTime){
+      // Incident-meter equation: E = C·N²/(t·ISO), C≈300; N from EXIF or f/2.0 default.
+      const E = meterC() * S.aperture * S.aperture / (st.exposureTime * st.iso);
+      S.camLux = Math.round(E);
+      attRaw = expLuxNow > 0 ? clamp(E / expLuxNow, 0, 1.15) : 0;
+      S.camDetail = "ISO " + st.iso + " · " + (st.exposureTime * 1000).toFixed(1) + "ms · f/" + S.aperture.toFixed(1);
+    } else {
+      // Platform-split correction. iOS preview is HDR tone-mapped into a narrow
+      // bright band — expand that band back out. Android fallback: gamma curve.
+      attRaw = plat() === "ios" ? clamp(Math.pow(clamp((luma - 190) / 65, 0, 1), 2.2) * 1.15, 0.02, 1.15)
+                                : clamp(g / 0.9, 0.03, 1.15);
+      S.camDetail = "AE luma " + Math.round(luma) + " · " + Math.round(attRaw * 100) + "% sky";
+    }
+    // EMA smoothing so the reading doesn't jump between samples.
+    S.emaAtt = S.emaAtt == null ? attRaw : S.emaAtt + 0.35 * (attRaw - S.emaAtt);
+  }, 700);
+  return true;
+}
+
+/* ================= BOOT FLOW ================= */
+function enableSensors(){
+  $("startBtn").disabled = true;
+  $("startBtn").textContent = "Requesting permissions…";
+  if (!isHTTPS) diag("sensors will fail: page is not HTTPS — host it on GitHub Pages", "err");
+
+  // Camera + light sensor FIRST (keeps the tap's user-gesture alive for Safari).
+  S.everEnabled = true;
+  const camDone = openCamera();
+  tryALS();
+  keepScreenOn();            // keep the screen awake while measuring
+
+  if (navigator.geolocation){
+    navigator.geolocation.getCurrentPosition(
+      pos => { S.lat = pos.coords.latitude; S.lon = pos.coords.longitude;
+               $("latIn").value = S.lat.toFixed(2); $("lonIn").value = S.lon.toFixed(2);
+               diag("location: " + S.lat.toFixed(2) + ", " + S.lon.toFixed(2), "ok");
+               showLoc("📍 Using your location for sun position."); },
+      err => { diag("location: " + err.message, "err");
+               showLoc("Location unavailable — type latitude/longitude above (approx. is fine)."); },
+      {timeout: 8000});
+  } else { diag("location: not supported", "err"); showLoc("Type latitude/longitude above (approx. is fine)."); }
+  $("locRow").classList.remove("hidden");
+
+  camDone.then(ok => {
+    if (ok || S.source){
+      $("startBtn").textContent = "Measuring — point sensor/camera at the sky";
+    } else {
+      $("startBtn").textContent = "Retry — no sensor yet (open Diagnostics above)";
+      $("startBtn").disabled = false;
+    }
+  });
+  $("sessBtn").disabled = false;
+}
+
+function showLoc(msg){ const n = $("locNote"); n.textContent = msg; n.classList.remove("hidden"); }
+
+/* ============ SCREEN WAKE LOCK + RESUME AFTER SCREEN LOCK ============ */
+let wakeLock = null;
+async function keepScreenOn(){
+  if (!("wakeLock" in navigator)){ diag("wake lock: unsupported on this browser (screen may sleep)"); return; }
+  try{
+    wakeLock = await navigator.wakeLock.request("screen");
+    wakeLock.addEventListener("release", () => diag("wake lock: released"));
+    diag("wake lock: screen stays on ✓", "ok");
+  }catch(e){ diag("wake lock: " + e.name, "err"); }
+}
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState !== "visible") return;
+  if (!wakeLock || wakeLock.released) keepScreenOn();
+  // The iOS native camera hides the page — don't let the return event swallow a photo reading.
+  if (Date.now() - S.photoBusyAt < 20000){ diag("camera auto-restart paused — photo in progress"); return; }
+  if (S.source === "camera"){
+    const track = camStream && camStream.getVideoTracks()[0];
+    if (!track || track.readyState === "ended"){
+      S.emaAtt = null; S.expLocked = false; S.lockRef = null;
+      diag("camera restarted after screen lock — re-locking exposure", "ok");
+      openCamera();
+    } else {
+      tryLockExposure(track);   // some devices silently reset auto-exposure
+    }
+  }
+});
+
+/* ================= ESTIMATE LOOP (1s) ================= */
+function estimate(){
+  const now = new Date();
+  const lat = S.lat ?? 0;
+  const lon = S.lon ?? (-now.getTimezoneOffset() / 4);
+  const el = sunElevation(now, lat, lon);
+  $("sunVal").textContent = el > 0 ? el.toFixed(0) + "°" : "below horizon";
+
+  const expLux = clearSkyLux(el), csUVI = clearSkyUVI(el);
+  let uvi = 0, cond = null;
+
+  if (el <= 0){
+    cond = ["Night", "gray"];
+  } else if (S.source === "als" && S.lux != null){
+    const att = clamp(S.lux / expLux, 0, 1.15);
+    uvi = csUVI * att;
+    cond = attToCond(att);
+  } else if ((S.source === "camera" || S.source === "photo") && S.emaAtt != null){
+    const att = clamp(S.emaAtt, 0, 1.15);
+    uvi = csUVI * att;
+    cond = attToCond(att);
+    if (S.source === "photo" && S.photoAt){
+      const ageMin = Math.floor((now - S.photoAt) / 60000);
+      $("photoNote").textContent = ageMin < 1 ? "📸 Static photo reading active — live camera off; timer runs on this value."
+        : "📸 Photo reading is " + ageMin + " min old — retake if the light changed.";
+    }
+  } else if (S.source === "demo"){
+    uvi = csUVI * 0.9;
+    cond = ["Demo — clear sky assumed", "gray"];
+  }
+
+  S.uvi = uvi;
+  $("uviNum").textContent = S.source ? uvi.toFixed(1) : "––";
+  $("uviNum").classList.toggle("ph", !S.source);
+  $("luxVal").textContent =
+      S.source === "als" && S.lux != null ? Math.round(S.lux).toLocaleString() + " lx"
+    : (S.source === "camera" || S.source === "photo") && S.camLux != null ? "≈" + S.camLux.toLocaleString() + " lx · f/" + S.aperture.toFixed(1)
+    : S.source === "camera" && S.emaAtt != null ? Math.round(clamp(S.emaAtt, 0, 1.15) * 100) + "% of clear sky"
+    : S.source === "demo" ? "simulated" : "–";
+  const cc = $("condChip");
+  if (cond){ cc.style.display = "inline-flex"; cc.textContent = cond[0]; cc.className = "chip " + (cond[1]||""); }
+
+  tickSession(now);
+}
+
+/* ================= VITAMIN D SESSION ================= */
+function tMEDmin(){
+  if (!S.uvi || S.uvi <= 0.1) return Infinity;
+  return SKIN[S.skin].med / (0.025 * S.uvi) / 60;
+}
+function iuPerMin(){
+  const t = tMEDmin();
+  if (!isFinite(t)) return 0;
+  return (1000 / (0.25 * t)) * (S.exposure / 25);
+}
+function tickSession(now){
+  if (!S.running) return;
+  const dt = (now - S.lastTick) / 60000;
+  S.lastTick = now;
+  S.elapsedMin += dt;
+  S.iu += iuPerMin() * dt;
+
+  const m = Math.floor(S.elapsedMin), s = Math.floor((S.elapsedMin - m) * 60);
+  $("timerVal").textContent = m + ":" + String(s).padStart(2, "0");
+  $("iuVal").textContent = Math.round(S.iu).toLocaleString();
+
+  const t = tMEDmin(), bar = $("burnBar");
+  if (isFinite(t)){
+    const f = clamp(S.elapsedMin / t, 0, 1);
+    bar.style.width = (f * 100) + "%";
+    bar.className = f >= 1 ? "over" : f >= .5 ? "warn" : "";
+    $("burnRight").textContent = "Burn time: ~" + Math.round(t) + " min";
+    $("burnLeft").textContent = f >= 1 ? "⚠️ Past burn threshold" :
+                                f >= .5 ? "Getting close — wrap up soon" : "Safe zone";
+  } else {
+    bar.style.width = "0%";
+    $("burnRight").textContent = "Burn time: ∞ (no UV)";
+    $("burnLeft").textContent = "No measurable UV right now";
+  }
+}
+
+/* ================= UI WIRING ================= */
+const grid = $("skinGrid");
+SKIN.forEach((sk, i) => {
+  const b = document.createElement("button");
+  b.className = "skin" + (i === S.skin ? " sel" : "");
+  b.style.background = sk.bg;
+  b.style.color = sk.fg;
+  if (i >= 3) b.style.textShadow = "0 1px 2px rgba(0,0,0,.35)";
+  b.innerHTML = sk.t + '<span class="d">' + sk.d + "</span>";
+  b.onclick = () => { S.skin = i; [...grid.children].forEach((c, j) => c.classList.toggle("sel", j === i)); };
+  grid.appendChild(b);
+});
+$("expRange").oninput = e => { S.exposure = +e.target.value; $("expVal").textContent = S.exposure + "%"; };
+$("latIn").onchange = e => { const v = parseFloat(e.target.value); if (!isNaN(v)) S.lat = clamp(v, -90, 90); };
+$("lonIn").onchange = e => { const v = parseFloat(e.target.value); if (!isNaN(v)) S.lon = clamp(v, -180, 180); };
+$("startBtn").onclick = enableSensors;
+document.querySelectorAll(".pchip").forEach(b => b.onclick = () => {
+  S.platform = b.dataset.p;
+  document.querySelectorAll(".pchip").forEach(c => c.classList.toggle("sel", c === b));
+  diag("platform: " + b.dataset.p + " → using " + plat() + " corrections");
+});
+$("flipBtn").onclick = () => {
+  S.facing = S.facing === "user" ? "environment" : "user";
+  S.emaAtt = null; S.expLocked = false; S.lockRef = null;
+  openCamera();
+};
+$("photoBtn").onclick = () => { S.photoBusyAt = Date.now(); $("photoIn").click(); };
+$("liveBtn").onclick = () => { S.emaAtt = null; S.camLux = null; S.photoAt = null; S.lockRef = null; openCamera(); };
+$("photoIn").onchange = async e => {
+  const f = e.target.files && e.target.files[0];
+  e.target.value = "";
+  if (!f) return;
+  diag("photo meter: reading EXIF…");
+  try{   // log format + first bytes so a weird delivery is identifiable from Diagnostics
+    const head = new Uint8Array(await f.slice(0, 12).arrayBuffer());
+    diag("photo: " + (f.type || "?") + " · " + Math.round(f.size / 1024) + " KB · " +
+         Array.from(head).map(x => x.toString(16).padStart(2, "0")).join(" "));
+  }catch(e){}
+  try{
+    const ex = await exifExposure(f);
+    if (!ex || !ex.t || !ex.iso){
+      diag("photo meter: no EXIF exposure data found (tried JPEG + HEIC)", "err");
+      $("photoNote").textContent = "⚠️ Couldn't read exposure data — snap the sky directly with the button (a gallery/screenshot image won't work).";
+      $("photoNote").classList.remove("hidden");
+      return;
+    }
+    if (ex.N && ex.N > 1 && ex.N < 3) S.aperture = ex.N;
+    const E = meterC() * S.aperture * S.aperture / (ex.t * ex.iso);   // incident-meter eq, platform-tuned C
+    const now = new Date();
+    const el = sunElevation(now, S.lat ?? 0, S.lon ?? (-now.getTimezoneOffset() / 4));
+    const expLuxNow = clearSkyLux(el);
+    const att = expLuxNow > 0 ? clamp(E / expLuxNow, 0, 1.15) : 0;
+    stopCamera();                                    // free the camera; photo result takes over
+    S.source = "photo";
+    S.emaAtt = att;                                  // single-shot: no smoothing needed
+    S.camLux = Math.round(E);
+    S.photoAt = now;
+    S.photoBusyAt = 0;
+    setSource("photo");
+    diag("photo meter: ISO " + ex.iso + " · " + (ex.t * 1000).toFixed(1) + "ms · f/" + S.aperture.toFixed(2) +
+         " → ≈" + Math.round(E).toLocaleString() + " lx (" + Math.round(att * 100) + "% sky, C=" + meterC() + ")", "ok");
+    $("photoNote").textContent = "📸 Static photo reading active — live camera is off and the timer now runs on this value. Retake when the light changes.";
+    $("photoNote").classList.remove("hidden");
+  }catch(err){ diag("photo meter: " + err.message, "err"); }
+};
+$("sessBtn").onclick = () => {
+  S.running = !S.running;
+  if (S.running){ S.lastTick = new Date(); $("sessBtn").textContent = "Stop session"; $("sessBtn").className = "danger"; }
+  else { $("sessBtn").textContent = "Start session"; $("sessBtn").className = ""; }
+};
+
+/* ================= BOOT ================= */
+if (!isHTTPS) $("httpsWarn").classList.remove("hidden");
+diag("build v11 · 30 Aug 2026 15:20 +08 — " + location.protocol + "//" + location.hostname);
+diag("light-sensor API: " + ("AmbientLightSensor" in window ? "available" : "absent (normal on iPhone)"));
+diag("camera API: " + ((navigator.mediaDevices && navigator.mediaDevices.getUserMedia) ? "available" : "missing (needs HTTPS)"));
+diag("platform: " + plat() + " (auto-detected" + (detectedIOS ? ": iOS" : ": Android/other") + " — toggle below if wrong)");
+
+// Demo mode via ?demo=1 only — never a silent fallback.
+if (new URLSearchParams(location.search).has("demo")){
+  S.lat = 1.35; S.lon = 103.82;
+  setSource("demo");
+  $("startBtn").textContent = "Demo mode — clear sky assumed";
+  $("startBtn").disabled = true;
+  $("sessBtn").disabled = false;
+  diag("demo mode active (?demo=1) — sensors ignored");
+}
+
+setInterval(estimate, 1000);
+estimate();
+</script>
+</body>
+</html>
